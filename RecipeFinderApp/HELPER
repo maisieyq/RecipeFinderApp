@@ -1,0 +1,36 @@
+
+// ********************************* //
+// Use this in any protected screen: //
+// ********************************* //
+
+
+const requireLogin = (
+  message = 'Please login or register first to use this feature.'
+) => {
+  if (isLoggedIn) return true;
+
+  Alert.alert(
+    'Login Required',
+    message,
+    [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Login',
+        onPress: () =>
+          navigation.getParent()?.navigate('ProfileTab', {
+            screen: 'LoginScreen',
+          }),
+      },
+      {
+        text: 'Register',
+        onPress: () =>
+          navigation.getParent()?.navigate('ProfileTab', {
+            screen: 'RegisterScreen',
+          }),
+      },
+    ]
+  );
+
+  return false;
+};
+

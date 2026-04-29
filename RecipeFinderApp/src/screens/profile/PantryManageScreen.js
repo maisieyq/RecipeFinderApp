@@ -13,6 +13,8 @@ import {
 import { Swipeable } from 'react-native-gesture-handler';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 import { typography, spacing, radius, colors } from '../../theme';
 import AppHeader from '../../components/common/AppHeader';
 import {
@@ -34,11 +36,13 @@ const PantryManageScreen = ({ navigation }) => {
   const [renameValue, setRenameValue] = useState('');
   const [editingItem, setEditingItem] = useState(null);
 
-  useEffect(() => {
-    if (user?.id) {
-      loadPantry();
-    }
-  }, [user?.id]);
+  useFocusEffect(
+    useCallback(() => {
+      if (user?.id) {
+        loadPantry();
+      }
+    }, [user?.id])
+  );
 
   const requireLogin = () => {
     if (isLoggedIn && user?.id) return true;

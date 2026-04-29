@@ -11,6 +11,8 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { spacing, colors } from '../../theme';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 
 import AppHeader from '../../components/common/AppHeader';
 import ProfileMenuRow from '../../components/Profile/ProfileMenuRow';
@@ -24,7 +26,6 @@ import {
 } from '../../components/icons/ProfileMenuIcons';
 
 import { PantryIcon } from '../../components/icons/AppNavigationIcons';
-import { usePantry } from '../../context/PantryContext';
 
 const ProfileScreen = ({ navigation }) => {
   const { theme } = useTheme();
@@ -34,9 +35,11 @@ const ProfileScreen = ({ navigation }) => {
   const [historyCount, setHistoryCount] = useState(0);
   const [pantryCount, setPantryCount] = useState(0);
 
-  useEffect(() => {
-    loadCounts();
-  }, [user?.id]);
+  useFocusEffect(
+    useCallback(() => {
+      loadCounts();
+    }, [user?.id])
+  );
 
   const loadCounts = async () => {
     if (!user?.id) {

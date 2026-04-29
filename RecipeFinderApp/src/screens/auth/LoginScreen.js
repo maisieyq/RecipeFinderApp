@@ -45,10 +45,10 @@ export default function LoginScreen({ navigation }) {
         return;
       }
 
-      login(data.user);
+      await login(data.user);
       Alert.alert('Login Successful', `Welcome back, ${data.user.name}!`);
-
       navigation.goBack();
+
     } catch (error) {
       console.log(error);
       Alert.alert('Error', 'Cannot connect to server.');

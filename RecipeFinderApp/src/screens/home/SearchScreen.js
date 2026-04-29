@@ -222,21 +222,36 @@ const goToRecipeDetail = recipe => {
 
 const getRecommendationResults = async () => {
   try {
-    const keyword =
-      pantryItems.length > 0
-        ? pantryItems[0].ingredientName || pantryItems[0]
-        : 'chicken';
+    let meals = [];
 
-    const meals = await searchMealsByName(keyword);
+    if (pantryItems.length > 0) {
+      // Try each pantry item until we get results
+      for (const pantryItem of pantryItems.slice(0, 3)) {
+        const keyword = pantryItem.ingredientName || pantryItem.name || pantryItem;
+
+        if (!keyword || typeof keyword !== 'string') continue;
+
+        const found = await searchMealsByIngredient(keyword);
+        if (found?.length > 0) {
+          meals = found;
+          break;
+        }
+      }
+    }
+
+    // Fallback if pantry empty or no matches
+    if (meals.length === 0) {
+      meals = await searchMealsByName('chicken');
+    }
 
     const detailed = await Promise.all(
-      meals.map(async meal => {
+      meals.slice(0, 10).map(async meal => { // ← limit to 10 to avoid slow loads
         const detail = await getMealById(meal.idMeal);
         return normalizeMeal(detail || meal);
       })
     );
 
-    return detailed;
+    return detailed.filter(Boolean); // ← remove any null results
   } catch (error) {
     console.log('Recommendation error:', error);
     return [];

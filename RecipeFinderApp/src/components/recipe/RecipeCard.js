@@ -54,6 +54,7 @@ const RecipeCard = ({
   variant = 'full',
   isFav = false,
   onFavoritePress,
+  showFavorite = true,
 }) => {
   const { theme } = useTheme();
   const { toggleFavorite, isFavorite } = useFavorites();
@@ -118,21 +119,6 @@ const RecipeCard = ({
             ))}
           </View>
         </View>
-
-        <TouchableOpacity
-          onPress={e => {
-            e.stopPropagation();
-            onFavoritePress?.(recipe);
-          }}
-          style={styles.favBtn}
-          activeOpacity={0.8}
-        >
-          <HeartIcon
-            filled={isFav}
-            color={colors.orange}
-            size={22}
-          />
-        </TouchableOpacity>
       </TouchableOpacity>
     );
   }
@@ -155,20 +141,22 @@ const RecipeCard = ({
           <DifficultyDot difficulty={recipe.difficulty} />
         </View>
 
-        <TouchableOpacity
-          style={styles.favOverlay}
-          onPress={e => {
-            e.stopPropagation();
-            onFavoritePress?.(recipe);
-          }}
-          activeOpacity={0.8}
-        >
-          <HeartIcon
-            filled={isFav}
-            color={colors.orange}
-            size={24}
-          />
-        </TouchableOpacity>
+        {showFavorite !== false && (
+          <TouchableOpacity
+            style={styles.favOverlay}
+            onPress={e => {
+              e.stopPropagation();
+              onFavoritePress?.(recipe);
+            }}
+            activeOpacity={0.8}
+          >
+            <HeartIcon
+              filled={isFav}
+              color={colors.orange}
+              size={24}
+            />
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={[styles.content, { borderTopColor: theme.border }]}>

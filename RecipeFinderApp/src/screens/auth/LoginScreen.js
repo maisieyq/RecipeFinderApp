@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import {
-  View,
+import {View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  Alert,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -19,6 +19,41 @@ export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Missing Information', 'Please enter email and password.');
+      return;
+    }
+
+    try {
+      const response = await fetch('http://10.0.2.2:3000/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        Alert.alert('Login Failed', data.error || 'Invalid email or password.');
+        return;
+      }
+
+      login(data.user);
+      Alert.alert('Login Successful', `Welcome back, ${data.user.name}!`);
+
+      navigation.goBack();
+    } catch (error) {
+      console.log(error);
+      Alert.alert('Error', 'Cannot connect to server.');
+    }
+  };
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.background }]}>
@@ -95,8 +130,7 @@ export default function LoginScreen({ navigation }) {
         <TouchableOpacity
           style={styles.btn}
           onPress={() => {
-            login();
-            navigation.goBack();
+            handleLogin();
           }}
           activeOpacity={0.85}
         >
@@ -107,7 +141,7 @@ export default function LoginScreen({ navigation }) {
           onPress={() => navigation.navigate('RegisterScreen')}
           activeOpacity={0.8}
         >
-          <Text style={styles.link}>Don’t have an account? Register</Text>
+          <Text style={styles.link}>Don't have an account? Register</Text>
         </TouchableOpacity>
       </View>
     </View>

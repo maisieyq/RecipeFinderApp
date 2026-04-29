@@ -48,7 +48,13 @@ const MetaItem = ({ Icon, value, theme, color, size }) => (
   </View>
 );
 
-const RecipeCard = ({ recipe, onPress, variant = 'full' }) => {
+const RecipeCard = ({
+  recipe,
+  onPress,
+  variant = 'full',
+  isFav = false,
+  onFavoritePress,
+}) => {
   const { theme } = useTheme();
   const { toggleFavorite, isFavorite } = useFavorites();
 
@@ -92,7 +98,7 @@ const RecipeCard = ({ recipe, onPress, variant = 'full' }) => {
           </View>
 
           <View style={styles.tagRow}>
-            {recipe.tags.slice(0, 2).map(tag => (
+            {(recipe.tags || []).slice(0, 2).map(tag => (
               <View
                 key={tag}
                 style={[
@@ -114,12 +120,15 @@ const RecipeCard = ({ recipe, onPress, variant = 'full' }) => {
         </View>
 
         <TouchableOpacity
-          onPress={() => toggleFavorite(recipe.id)}
+          onPress={e => {
+            e.stopPropagation();
+            onFavoritePress?.(recipe);
+          }}
           style={styles.favBtn}
           activeOpacity={0.8}
         >
           <HeartIcon
-            filled={isFavorite(recipe.id)}
+            filled={isFav}
             color={colors.orange}
             size={22}
           />
@@ -148,11 +157,14 @@ const RecipeCard = ({ recipe, onPress, variant = 'full' }) => {
 
         <TouchableOpacity
           style={styles.favOverlay}
-          onPress={() => toggleFavorite(recipe.id)}
+          onPress={e => {
+            e.stopPropagation();
+            onFavoritePress?.(recipe);
+          }}
           activeOpacity={0.8}
         >
           <HeartIcon
-            filled={isFavorite(recipe.id)}
+            filled={isFav}
             color={colors.orange}
             size={24}
           />

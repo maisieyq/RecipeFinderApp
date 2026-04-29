@@ -8,12 +8,14 @@ import {
   Alert,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 import { typography, spacing, radius, colors } from '../../theme';
 import AppHeader from '../../components/common/AppHeader';
 import { EyeIcon, EyeOffIcon } from '../../components/icons/commonIcons';
 
 const ChangePasswordScreen = ({ navigation }) => {
   const { theme } = useTheme();
+  const { user } = useAuth();
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -23,19 +25,53 @@ const ChangePasswordScreen = ({ navigation }) => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const handleSave = () => {
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      Alert.alert('Missing Information', 'Please fill in all password fields.');
+  const handleSave = async () => {
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    Alert.alert('Missing Information', 'Please fill in all password fields.');
+    return;
+  }
+
+  if (newPassword !== confirmPassword) {
+    Alert.alert('Password Mismatch', 'New password and confirm password do not match.');
+    return;
+  }
+
+  if (!user?.id) {
+    Alert.alert('Error', 'Please login first.');
+    navigation.navigate('LoginScreen');
+    return;
+  }
+
+  try {
+    const response = await fetch(`http://10.0.2.2:3000/profile/${user.id}/password`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        currentPassword,
+        newPassword,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      Alert.alert('Update Failed', data.error || data.message);
       return;
     }
 
-    if (newPassword !== confirmPassword) {
-      Alert.alert('Password Mismatch', 'New password and confirm password do not match.');
-      return;
-    }
-
-    Alert.alert('Updated', 'Your password has been changed successfully.');
-  };
+    Alert.alert('Updated', 'Your password has been changed successfully.', [
+      {
+        text: 'OK',
+        onPress: () => navigation.goBack(),
+      },
+    ]);
+  } catch (error) {
+    console.log(error);
+    Alert.alert('Error', 'Cannot connect to server.');
+  }
+};
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.background }]}>

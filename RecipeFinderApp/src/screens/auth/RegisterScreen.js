@@ -25,28 +25,49 @@ export default function RegisterScreen({ navigation }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const handleRegister = () => {
-    if (!name || !email || !phone || !password || !confirmPassword) {
-      Alert.alert('Missing Information', 'Please fill in all fields.');
+  const handleRegister = async () => {
+  if (!name || !email || !phone || !password || !confirmPassword) {
+    Alert.alert('Missing Information', 'Please fill in all fields.');
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    Alert.alert('Password Mismatch', 'Password and confirm password do not match.');
+    return;
+  }
+
+  try {
+    const response = await fetch('http://10.0.2.2:3000/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name,
+        email,
+        phone,
+        password,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      Alert.alert('Register Failed', data.error || data.message);
       return;
     }
 
-    if (password !== confirmPassword) {
-      Alert.alert('Password Mismatch', 'Password and confirm password do not match.');
-      return;
-    }
-
-    Alert.alert(
-      'Registered',
-      'Your account has been created successfully.',
-      [
-        {
-          text: 'OK',
-          onPress: () => navigation.navigate('LoginScreen'),
-        },
-      ]
-    );
-  };
+    Alert.alert('Registered', 'Your account has been created successfully.', [
+      {
+        text: 'OK',
+        onPress: () => navigation.navigate('LoginScreen'),
+      },
+    ]);
+  } catch (error) {
+    Alert.alert('Error', 'Cannot connect to server.');
+    console.log(error);
+  }
+};
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.background }]}>

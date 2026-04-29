@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useState,useRef } from 'react';
 import {
   View,
   Text,
@@ -9,25 +9,58 @@ import {
   TouchableWithoutFeedback,
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
-
+import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { useHistoryRecipes } from '../../context/HistoryContext';
-import { useFavorites } from '../../context/FavoritesContext';
-
 import { typography, spacing, radius } from '../../theme';
-import { RECIPES } from '../../data/mockData';
-
 import RecipeCard from '../../components/recipe/RecipeCard';
 import AppHeader from '../../components/common/AppHeader';
 import { confirmClearList } from '../../utils/recipeAlerts';
 
 const HistoryScreen = ({ navigation }) => {
   const { theme } = useTheme();
-  const { history, removeFromHistory, clearHistory } = useHistoryRecipes();
-  const { toggleFavorite, isFavorite } = useFavorites();
+  const { user } = useAuth();
+
+  const [histRecipes, setHistRecipes] = useState([]);
 
   const swipeRefs = useRef({});
   const openRow = useRef(null);
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  const loadHistory = async () => {
+    if (!user?.id) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`http://10.0.2.2:3000/history/${user.id}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        Alert.alert('Error', data.error || 'Failed to load history.');
+        return;
+      }
+
+      const formatted = data.map(item => ({
+        id: item.recipeId,
+        title: item.recipeTitle,
+        image: item.recipeImage,
+        historyId: item.id,
+        cookTime: item.cookTime || 'N/A',
+        servings: item.servings || 1,
+        calories: item.calories || 0,
+        difficulty: item.difficulty || 'N/A',
+        tags: [],
+      }));
+
+      setHistRecipes(formatted);
+    } catch (error) {
+      console.log(error);
+      Alert.alert('Error', 'Cannot connect to server.');
+    }
+  };
 
   const closeAllRows = () => {
     Object.values(swipeRefs.current).forEach(ref => {
@@ -52,14 +85,26 @@ const HistoryScreen = ({ navigation }) => {
     confirmClearList({
       title: 'Clear History',
       message: 'Remove all viewing history?',
-      onConfirm: () => {
-        closeAllRows();
-        clearHistory();
+      onConfirm: async () => {
+        try {
+          closeAllRows();
+
+          for (const recipe of histRecipes) {
+            await fetch(`http://10.0.2.2:3000/history/${recipe.historyId}`, {
+              method: 'DELETE',
+            });
+          }
+
+          setHistRecipes([]);
+        } catch (error) {
+          console.log(error);
+          Alert.alert('Error', 'Cannot clear history.');
+        }
       },
     });
   };
 
-  const handleRemove = id => {
+  const handleRemove = recipe => {
     Alert.alert(
       'Remove History',
       'Are you sure you want to remove this recipe from history?',
@@ -68,23 +113,31 @@ const HistoryScreen = ({ navigation }) => {
         {
           text: 'Remove',
           style: 'destructive',
-          onPress: () => {
-            closeAllRows();
-            removeFromHistory(id);
+          onPress: async () => {
+            try {
+              closeAllRows();
+
+              await fetch(`http://10.0.2.2:3000/history/${recipe.historyId}`, {
+                method: 'DELETE',
+              });
+
+              setHistRecipes(prev =>
+                prev.filter(item => item.historyId !== recipe.historyId)
+              );
+            } catch (error) {
+              console.log(error);
+              Alert.alert('Error', 'Cannot remove history.');
+            }
           },
         },
       ]
     );
   };
 
-  const histRecipes = history
-    .map(id => RECIPES.find(r => r.id === id))
-    .filter(Boolean);
-
-  const renderRightActions = id => (
+  const renderRightActions = recipe => (
     <TouchableOpacity
       activeOpacity={0.85}
-      onPress={() => handleRemove(id)}
+      onPress={() => handleRemove(recipe)}
       style={styles.deleteAction}
     >
       <Text style={styles.deleteText}>Remove</Text>
@@ -123,14 +176,14 @@ const HistoryScreen = ({ navigation }) => {
             </View>
 
             {histRecipes.map(recipe => (
-              <View key={recipe.id} style={styles.cardWrap}>
+              <View key={recipe.historyId} style={styles.cardWrap}>
                 <Swipeable
                   ref={ref => {
-                    if (ref) swipeRefs.current[recipe.id] = ref;
+                    if (ref) swipeRefs.current[recipe.historyId] = ref;
                   }}
                   overshootRight={false}
-                  onSwipeableOpen={() => handleSwipeOpen(recipe.id)}
-                  renderRightActions={() => renderRightActions(recipe.id)}
+                  onSwipeableOpen={() => handleSwipeOpen(recipe.historyId)}
+                  renderRightActions={() => renderRightActions(recipe)}
                 >
                   <RecipeCard
                     recipe={recipe}

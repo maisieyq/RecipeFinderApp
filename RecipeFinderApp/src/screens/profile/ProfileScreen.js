@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,13 +8,12 @@ import {
   Alert,
 } from 'react-native';
 
-import { useTheme }        from '../../context/ThemeContext';
-import { useAuth }         from '../../context/AuthContext';
-import { useFavorites }    from '../../context/FavoritesContext';
+import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 import { spacing, colors } from '../../theme';
 
-import AppHeader           from '../../components/common/AppHeader';
-import ProfileMenuRow      from '../../components/Profile/ProfileMenuRow';
+import AppHeader from '../../components/common/AppHeader';
+import ProfileMenuRow from '../../components/Profile/ProfileMenuRow';
 
 import {
   FavouriteIcon,
@@ -24,37 +23,75 @@ import {
   LogoutIcon,
 } from '../../components/icons/ProfileMenuIcons';
 
-import { PantryIcon }      from '../../components/icons/AppNavigationIcons';
-import { usePantry }       from '../../context/PantryContext';
+import { PantryIcon } from '../../components/icons/AppNavigationIcons';
+import { usePantry } from '../../context/PantryContext';
 
 const ProfileScreen = ({ navigation }) => {
   const { theme } = useTheme();
+  const { user, isLoggedIn, logout } = useAuth();
+  const { pantryItems } = usePantry();
 
-  const handleEdit = () => {
-    navigation.navigate('EditProfileScreen');
+  const [favouriteCount, setFavouriteCount] = useState(0);
+  const [historyCount, setHistoryCount] = useState(0);
+
+  useEffect(() => {
+    loadCounts();
+  }, [user?.id]);
+
+  const loadCounts = async () => {
+    if (!user?.id) {
+      setFavouriteCount(0);
+      setHistoryCount(0);
+      return;
+    }
+
+    try {
+      const favRes = await fetch(`http://10.0.2.2:3000/favourites/${user.id}`);
+      const favData = await favRes.json();
+
+      const historyRes = await fetch(`http://10.0.2.2:3000/history/${user.id}`);
+      const historyData = await historyRes.json();
+
+      setFavouriteCount(Array.isArray(favData) ? favData.length : 0);
+      setHistoryCount(Array.isArray(historyData) ? historyData.length : 0);
+    } catch (error) {
+      console.log(error);
+      setFavouriteCount(0);
+      setHistoryCount(0);
+    }
   };
 
-  const { logout } = useAuth();
+  const handleEdit = () => {
+    if (!isLoggedIn) {
+      navigation.navigate('LoginScreen');
+      return;
+    }
 
-  const { favorites } = useFavorites();
+    navigation.navigate('EditProfileScreen');
+  };
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure?', [
       { text: 'Cancel' },
-      { text: 'Logout', onPress: logout },
+      {
+        text: 'Logout',
+        onPress: () => {
+          logout();
+          setFavouriteCount(0);
+          setHistoryCount(0);
+        },
+      },
     ]);
   };
-
-  const { pantryItems } = usePantry();
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.background ?? '#FAFAFA' }]}>
       <AppHeader title="Profile" variant="profile" />
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
-        
         <View style={styles.userHero}>
           <View style={styles.heroCircle1} />
           <View style={styles.heroCircle2} />
@@ -62,17 +99,25 @@ const ProfileScreen = ({ navigation }) => {
           <View style={styles.userHeroContent}>
             <View style={styles.avatarWrap}>
               <View style={styles.avatarCircle}>
-                <Text style={styles.avatarText}>UN</Text>
+                <Text style={styles.avatarText}>
+                  {user?.name ? user.name.substring(0, 2).toUpperCase() : 'UN'}
+                </Text>
               </View>
               <View style={styles.avatarOnline} />
             </View>
 
             <View style={styles.userInfo}>
-              <Text style={styles.userName}>UserName</Text>
+              <Text style={styles.userName}>
+                {user?.name || 'Guest User'}
+              </Text>
 
               <View style={{ marginTop: 2 }}>
-                <Text style={styles.userMail} numberOfLines={1}>WAD202605@gmail.com</Text>
-                <Text style={styles.userPhone}>+60123456789</Text>
+                <Text style={styles.userMail} numberOfLines={1}>
+                  {user?.email || 'Please login'}
+                </Text>
+                <Text style={styles.userPhone}>
+                  {user?.phone || '-'}
+                </Text>
               </View>
             </View>
 
@@ -82,7 +127,7 @@ const ProfileScreen = ({ navigation }) => {
                 onPress={handleEdit}
                 activeOpacity={0.85}
               >
-                <EditIcon color='#FF6B2C' size={16} />
+                <EditIcon color="#FF6B2C" size={16} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -90,7 +135,7 @@ const ProfileScreen = ({ navigation }) => {
                 onPress={handleLogout}
                 activeOpacity={0.85}
               >
-                <LogoutIcon color='#FF6B2C' size={16} />
+                <LogoutIcon color="#FF6B2C" size={16} />
               </TouchableOpacity>
             </View>
           </View>
@@ -100,7 +145,7 @@ const ProfileScreen = ({ navigation }) => {
           <ProfileMenuRow
             icon={<FavouriteIcon color={colors.orange} />}
             label="Favourite"
-            count={favorites.length}
+            count={favouriteCount}
             theme={theme}
             onPress={() => navigation.navigate('FavouritesScreen')}
           />
@@ -108,6 +153,7 @@ const ProfileScreen = ({ navigation }) => {
           <ProfileMenuRow
             icon={<HistoryIcon color={colors.orange} />}
             label="History"
+            count={historyCount}
             theme={theme}
             onPress={() => navigation.navigate('HistoryScreen')}
           />
@@ -204,7 +250,6 @@ const styles = StyleSheet.create({
     borderColor: colors.orange,
   },
 
-  // user name
   userInfo: {
     flex: 1,
   },
@@ -231,10 +276,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
     letterSpacing: 0.4,
   },
-                    
 
-
-  // edit + logout
   userActions: {
     gap: 8,
   },
@@ -256,7 +298,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // 3 screen 
   menuWrap: {
     marginTop: spacing.lg,
     paddingHorizontal: spacing.base,

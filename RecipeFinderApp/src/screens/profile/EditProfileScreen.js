@@ -9,34 +9,68 @@ import {
   ScrollView,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 import { typography, spacing, radius, colors } from '../../theme';
 import AppHeader from '../../components/common/AppHeader';
 
 const EditProfileScreen = ({ navigation }) => {
   const { theme } = useTheme();
+  const { user, login } = useAuth();
 
-  const [name, setName] = useState('UserName');
-  const [email, setEmail] = useState('WAD202605@gmail.com');
-  const [phone, setPhone] = useState('+60123456789');
-  const [password, setPassword] = useState('123456');
+  const [name, setName] = useState(user?.name || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [phone, setPhone] = useState(user?.phone || '');
 
-    const handleSave = () => {
-    if (!name || !email || !phone || !password) {
-        Alert.alert('Missing Information', 'Please fill in all fields.');
-        return;
+    const handleSave = async () => {
+    if (!name || !email || !phone) {
+      Alert.alert('Missing Information', 'Please fill in all fields.');
+      return;
     }
 
-    Alert.alert(
-        'Updated',
-        'Your profile has been updated successfully.',
-        [
-        {
-            text: 'OK',
-            onPress: () => navigation.goBack(),
+    if (!user?.id) {
+      Alert.alert('Error', 'Please login first.');
+      navigation.navigate('LoginScreen');
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://10.0.2.2:3000/profile/${user.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        ]
-    );
-    };
+        body: JSON.stringify({
+          name,
+          email,
+          phone,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        Alert.alert('Update Failed', data.error || data.message);
+        return;
+      }
+
+      login({
+        ...user,
+        name,
+        email,
+        phone,
+      });
+
+      Alert.alert('Updated', 'Your profile has been updated successfully.', [
+        {
+          text: 'OK',
+          onPress: () => navigation.goBack(),
+        },
+      ]);
+    } catch (error) {
+      console.log(error);
+      Alert.alert('Error', 'Cannot connect to server.');
+    }
+  };
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.background }]}>

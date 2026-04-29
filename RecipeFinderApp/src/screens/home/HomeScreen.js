@@ -1,30 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  StatusBar,
-  Image,
-  Platform,
-} from 'react-native';
+import {View,Text,ScrollView,TouchableOpacity,StyleSheet,StatusBar,Image,Platform,} from 'react-native';
 import { SkeletonCard } from '../../components/common/StateComponents';
 import { useTheme } from '../../context/ThemeContext';
 import { typography, spacing, radius, colors, shadows } from '../../theme';
 import { searchMealsByName, getMealById, normalizeMeal } from '../../services/mealDbApi';
-import {
-  ThemeIcon,
-  SunIcon,
-} from '../../components/icons/HomeScreenIcons';
-
-import {
-  SearchIcon,
-  TimeIcon,
-  PeopleIcon,
-  CalorieIcon,
-  StarIcon,
-} from '../../components/icons/commonIcons';
+import {ThemeIcon,SunIcon,} from '../../components/icons/HomeScreenIcons';
+import {SearchIcon,TimeIcon,PeopleIcon,CalorieIcon,StarIcon,} from '../../components/icons/commonIcons';
 
 const CATEGORIES = ['All', 'Chicken', 'Beef', 'Seafood', 'Vegetarian', 'Dessert'];
 
@@ -218,15 +199,19 @@ const HomeScreen = ({ navigation }) => {
             <TouchableOpacity
               style={styles.heroBtn}
               activeOpacity={0.85}
-              onPress={() =>
+              onPress={() => {
+                navigation.getParent()?.navigate('SearchTab', {
+                screen: 'SearchMain',
+                params: { query: 'sandwich', fromHome: true },
+              });
+              // Clear params right after so they don't persist
+              setTimeout(() => {
                 navigation.getParent()?.navigate('SearchTab', {
                   screen: 'SearchMain',
-                  params: {
-                    query: 'sandwich',
-                    fromHome: true,
-                  },
-                })
-              }
+                  params: { query: null, fromHome: null },
+                });
+              }, 1000);
+                          }}
             >
               <Text style={styles.heroBtnText}>Explore Now →</Text>
             </TouchableOpacity>

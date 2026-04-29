@@ -1,4 +1,4 @@
-import React from 'react';
+import React,{ useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,29 +6,73 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from 'react-native';
-
 import { useTheme } from '../../context/ThemeContext';
-import { useFavorites } from '../../context/FavoritesContext';
-
+import { useAuth } from '../../context/AuthContext';
 import { typography, spacing, radius } from '../../theme';
-import { RECIPES } from '../../data/mockData';
-
+import { Alert } from 'react-native';
 import RecipeCard from '../../components/recipe/RecipeCard';
 import AppHeader from '../../components/common/AppHeader';
 import { confirmClearList } from '../../utils/recipeAlerts';
 
 const FavoritesScreen = ({ navigation }) => {
+  const { user } = useAuth();
   const { theme } = useTheme();
-  const { favorites, toggleFavorite } = useFavorites();
+  const [favRecipes, setFavRecipes] = useState([]);
 
-  const favRecipes = RECIPES.filter(r => favorites.includes(r.id));
+  useEffect(() => {
+  loadFavourites();
+}, []);
+
+  const loadFavourites = async () => {
+    if (!user?.id) {
+      Alert.alert('Login Required', 'Please login first.');
+      navigation.navigate('LoginScreen');
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://10.0.2.2:3000/favourites/${user.id}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        Alert.alert('Error', data.error || 'Failed to load favourites.');
+        return;
+      }
+
+      const formatted = data.map(item => ({
+        id: item.recipeId,
+        title: item.recipeTitle,
+        image: item.recipeImage,
+        favouriteId: item.id,
+        cookTime: item.cookTime,
+        servings: item.servings,
+        calories: item.calories,
+        difficulty: item.difficulty,
+      }));
+
+      setFavRecipes(formatted);
+    } catch (error) {
+      console.log(error);
+      Alert.alert('Error', 'Cannot connect to server.');
+    }
+  };
 
   const clearAll = () => {
     confirmClearList({
       title: 'Clear Favourites',
       message: 'Remove all saved recipes?',
-      onConfirm: () => {
-        favorites.forEach(id => toggleFavorite(id));
+      onConfirm: async () => {
+        try {
+          for (const recipe of favRecipes) {
+            await fetch(`http://10.0.2.2:3000/favourites/${recipe.favouriteId}`, {
+              method: 'DELETE',
+            });
+          }
+
+          setFavRecipes([]);
+        } catch (error) {
+          Alert.alert('Error', 'Cannot clear favourites.');
+        }
       },
     });
   };
@@ -66,7 +110,7 @@ const FavoritesScreen = ({ navigation }) => {
               <RecipeCard
                 recipe={recipe}
                 variant="horizontal"
-                onPress={() => navigation.navigate('RecipeDetail', { recipe })}
+                onPress={() => navigation.navigate('RecipeDetail', { recipeId: recipe.id })}
               />
             </View>
           ))}

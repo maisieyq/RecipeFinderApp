@@ -10,7 +10,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { typography, spacing, radius, colors, shadows } from '../../theme';
+import { typography as appTypography, spacing as appSpacing, radius as appRadius, colors as appColors, shadows as appShadows } from '../../theme';
 import {
   BackIcon,
   HeartIcon,
@@ -19,6 +19,7 @@ import {
   CalorieIcon,
   CheckIcon,
 } from '../../components/icons/commonIcons';
+import { getMealById, normalizeMeal } from '../../services/mealDbApi';
 import { useFavorites } from '../../context/FavoritesContext';
 import { useHistoryRecipes } from '../../context/HistoryContext';
 import { useAuth } from '../../context/AuthContext';
@@ -27,17 +28,34 @@ import { Alert } from 'react-native';
 const { width } = Dimensions.get('window');
 const IMAGE_H = 320;
 
+const typography = appTypography || { sizes: { xs: 11, sm: 13, base: 15, md: 17, lg: 20, xl: 24, xxl: 30 } };
+const spacing = appSpacing || { xs: 4, sm: 8, md: 12, base: 16, lg: 20, xl: 24, xxl: 32 };
+const radius = appRadius || { sm: 6, md: 10, lg: 16, xl: 24, round: 999 };
+const colors = appColors || { orange: '#FF6B2C', green: '#4CAF50', amber: '#FF9800', red: '#F44336' };
+const shadows = appShadows || { sm: {}, md: {}, lg: {} };
+
 const RecipeDetailScreen = ({ navigation, route }) => {
   const { theme } = useTheme();
-  const { recipe } = route.params;
+
+  // FIX 1: Rename to avoid variable name collision with recipeId used inside useEffect
+  const { recipe: passedRecipe, recipeId: passedRecipeId } = route.params || {};
+
+  const [recipe, setRecipe] = useState(passedRecipe || null);
+  const [loading, setLoading] = useState(!passedRecipe);
+  const { user } = useAuth();
 
   const { favorites, toggleFavorite } = useFavorites();
   const { isLoggedIn } = useAuth();
   const { addToHistory } = useHistoryRecipes();
 
+  // FIX 2: Initialize isFav from favorites context so it's not always false
+  const [isFav, setIsFav] = useState(
+    favorites?.some(f => String(f.recipeId) === String(passedRecipe?.id)) ?? false
+  );
+
   const [activeTab, setActiveTab] = useState('Ingredients');
   const [completedSteps, setCompletedSteps] = useState([]);
-  const [servings] = useState(recipe.servings);
+  const servings = recipe?.servings || 1;
 
   const scrollY = useRef(new Animated.Value(0)).current;
   const favScale = useRef(new Animated.Value(1)).current;
@@ -52,9 +70,65 @@ const RecipeDetailScreen = ({ navigation, route }) => {
           fiber: '0g',
         };
 
+  // FIX 3: Empty deps [] — only run once on mount, uses passedRecipeId not recipeId
   useEffect(() => {
-    addToHistory(recipe.id);
-  }, [recipe]);
+    const loadRecipe = async () => {
+      if (passedRecipe) return;
+      if (!passedRecipeId) {
+        Alert.alert('Error', 'Recipe ID is missing.');
+        navigation.goBack();
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const mealFromApi = await getMealById(passedRecipeId);
+        if (!mealFromApi) {
+          Alert.alert('Error', 'Recipe not found.');
+          navigation.goBack();
+          return;
+        }
+        const fullRecipe = normalizeMeal(mealFromApi);
+        setRecipe(fullRecipe);
+      } catch (error) {
+        console.log(error);
+        Alert.alert('Error', 'Failed to load recipe details.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadRecipe();
+  }, []); // ← empty deps, only runs once on mount
+
+  // FIX 4: Only depend on recipe?.id string, not the whole recipe object or addToHistory
+  // This prevents infinite re-render loop when addToHistory is unstable
+  const stableRecipeId = recipe?.id;
+  useEffect(() => {
+    if (stableRecipeId) {
+      addToHistory(stableRecipeId);
+    }
+  }, [stableRecipeId]); // ← was [recipe, addToHistory] which caused the freeze
+
+  useEffect(() => {
+    if (recipe?.id && user?.id) {
+      checkFavourite();
+    }
+  }, [recipe?.id, user?.id]);
+
+  const checkFavourite = async () => {
+    if (!user?.id || !recipe?.id) return;
+
+    try {
+      const res = await fetch(`http://10.0.2.2:3000/favourites/${user.id}`);
+      const data = await res.json();
+
+      const found = data.find(item => String(item.recipeId) === String(recipe.id));
+      setIsFav(!!found);
+    } catch (err) {
+      console.log(err);
+    }
+  };
 
   const headerOpacity = scrollY.interpolate({
     inputRange: [IMAGE_H - 100, IMAGE_H - 30],
@@ -76,19 +150,59 @@ const RecipeDetailScreen = ({ navigation, route }) => {
 
   const TABS = ['Ingredients', 'Steps', 'Nutrition'];
 
-  const tapFavorite = () => {
-    if (!requireLogin('Please login or register first to save favorite recipes.')) {
+  const tapFavorite = async () => {
+    if (!recipe?.id) {
+      Alert.alert('Please wait', 'Recipe is still loading.');
       return;
     }
 
-    toggleFavorite(recipe.id);
+    if (!requireLogin()) return;
 
-    Animated.sequence([
-      Animated.spring(favScale, { toValue: 1.16, useNativeDriver: true }),
-      Animated.spring(favScale, { toValue: 1, useNativeDriver: true }),
-    ]).start();
+    try {
+      if (!isFav) {
+        await fetch(`http://10.0.2.2:3000/favourites`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.id,
+            recipeId: recipe.id,
+            recipeTitle: recipe.title,
+            recipeImage: recipe.image,
+            cookTime: recipe.cookTime,
+            servings: recipe.servings,
+            calories: recipe.calories,
+            difficulty: recipe.difficulty,
+          }),
+        });
+
+        setIsFav(true);
+      } else {
+        const res = await fetch(`http://10.0.2.2:3000/favourites/${user.id}`);
+        const data = await res.json();
+
+        const found = data.find(
+          item => String(item.recipeId) === String(recipe.id)
+        );
+
+        if (found) {
+          await fetch(`http://10.0.2.2:3000/favourites/${found.id}`, {
+            method: 'DELETE',
+          });
+        }
+
+        setIsFav(false);
+      }
+
+      Animated.sequence([
+        Animated.spring(favScale, { toValue: 1.16, useNativeDriver: true }),
+        Animated.spring(favScale, { toValue: 1, useNativeDriver: true }),
+      ]).start();
+    } catch (error) {
+      console.log(error);
+      Alert.alert('Error', 'Cannot connect to server.');
+    }
   };
-  
+
   const requireLogin = (
     message = 'Please login or register first to use this feature.'
   ) => {
@@ -126,10 +240,25 @@ const RecipeDetailScreen = ({ navigation, route }) => {
   };
 
   const handleShare = async () => {
+    if (!recipe) {
+      Alert.alert('Please wait', 'Recipe is still loading.');
+      return;
+    }
+
     await Share.share({
-      message: `Check out this recipe: ${recipe.title}\n\nIngredients: ${recipe.ingredients.join(', ')}\n\nCook time: ${recipe.cookTime}`,
+      message: `Check out this recipe: ${recipe.title}\n\nIngredients: ${(recipe.ingredients || []).join(', ')}\n\nCook time: ${recipe.cookTime}`,
     });
   };
+
+  if (loading || !recipe) {
+    return (
+      <View style={[styles.screen, { backgroundColor: theme.background }]}>
+        <Text style={{ color: theme.text, marginTop: 80, textAlign: 'center' }}>
+          Loading recipe...
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.background }]}>
@@ -201,7 +330,7 @@ const RecipeDetailScreen = ({ navigation, route }) => {
                   activeOpacity={0.8}
                 >
                   <HeartIcon
-                    filled={favorites.includes(recipe.id)}
+                    filled={isFav}
                     color={colors.orange}
                     size={22}
                   />
@@ -262,7 +391,7 @@ const RecipeDetailScreen = ({ navigation, route }) => {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.tagRow}
             >
-              {recipe.tags.map(tag => (
+              {(recipe.tags || []).map(tag => (
                 <View
                   key={tag}
                   style={[
@@ -340,7 +469,7 @@ const RecipeDetailScreen = ({ navigation, route }) => {
                 Ingredients for {servings} serving{servings !== 1 ? 's' : ''}
               </Text>
 
-              {recipe.ingredients.map((ing, idx) => (
+              {(recipe.ingredients || []).map((ing, idx) => (
                 <View
                   key={idx}
                   style={[
@@ -368,7 +497,7 @@ const RecipeDetailScreen = ({ navigation, route }) => {
                 Tap a step to mark it complete
               </Text>
 
-              {recipe.steps.map((step, idx) => {
+              {(recipe.steps || []).map((step, idx) => {
                 const done = completedSteps.includes(idx);
 
                 return (

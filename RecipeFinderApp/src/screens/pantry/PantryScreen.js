@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect,useState } from 'react';
 import {
   View,
   Text,
@@ -7,9 +7,8 @@ import {
   StyleSheet,
   Alert,
 } from 'react-native';
-
+import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { usePantry } from '../../context/PantryContext';
 import { typography, spacing, radius, colors } from '../../theme';
 
 import {
@@ -24,21 +23,90 @@ import RecipeCard from '../../components/recipe/RecipeCard';
 import SearchBar from '../../components/common/SearchBar';
 import { EmptyState, SkeletonCard } from '../../components/common/StateComponents';
 import { CloseIcon } from '../../components/icons/commonIcons';
-import { useAuth } from '../../context/AuthContext';
-
 const SUGGESTED_ITEMS = ['Egg', 'Onion', 'Tomato', 'Potato'];
 
 const PantryScreen = ({ navigation }) => {
   const { theme, isDark } = useTheme();
-  const { pantryItems, addPantryItem, removePantryItem } = usePantry();
-
+  const { user, isLoggedIn } = useAuth();
+  const [pantryItems, setPantryItems] = useState([]);
   const [input, setInput] = useState('');
   const [selected, setSelected] = useState([]);
   const [results, setResults] = useState([]);
   const [searched, setSearched] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [favouriteIds, setFavouriteIds] = useState([]);
 
-  const { isLoggedIn } = useAuth();
+
+  useEffect(() => {
+    loadPantry();
+  }, []);
+
+  const loadPantry = async () => {
+    if (!user?.id) return;
+
+    try {
+      const res = await fetch(`http://10.0.2.2:3000/pantry/${user.id}`);
+      const data = await res.json();
+      setPantryItems(data);
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
+  const loadFavourites = async () => {
+  if (!user?.id) return;
+
+  const res = await fetch(`http://10.0.2.2:3000/favourites/${user.id}`);
+  const data = await res.json();
+
+  setFavouriteIds(data.map(item => String(item.recipeId)));
+};
+
+useEffect(() => {
+  loadFavourites();
+}, [user?.id]);
+
+const handleFavorite = async recipe => {
+  if (!isLoggedIn) {
+    Alert.alert('Login Required', 'Please login or register first.');
+    return;
+  }
+
+  const recipeId = String(recipe.id);
+  const isFav = favouriteIds.includes(recipeId);
+
+  if (!isFav) {
+    await fetch(`http://10.0.2.2:3000/favourites`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: user.id,
+        recipeId: recipe.id,
+        recipeTitle: recipe.title,
+        recipeImage: recipe.image,
+        cookTime: recipe.cookTime,
+        servings: recipe.servings,
+        calories: recipe.calories,
+        difficulty: recipe.difficulty,
+      }),
+    });
+
+    setFavouriteIds(prev => [...prev, recipeId]);
+  } else {
+    const res = await fetch(`http://10.0.2.2:3000/favourites/${user.id}`);
+    const data = await res.json();
+
+    const found = data.find(item => String(item.recipeId) === recipeId);
+
+    if (found) {
+      await fetch(`http://10.0.2.2:3000/favourites/${found.id}`, {
+        method: 'DELETE',
+      });
+    }
+
+    setFavouriteIds(prev => prev.filter(id => id !== recipeId));
+  }
+};
 
   const requireLogin = (
     message = 'Please login or register first to use this feature.'
@@ -74,7 +142,7 @@ const PantryScreen = ({ navigation }) => {
     );
   };
 
-  const handleAddPantryItem = () => {
+  const handleAddPantryItem = async ()  => {
     if (!requireLogin('Please login or register first to add pantry items.')) {
       return;
     }
@@ -82,11 +150,20 @@ const PantryScreen = ({ navigation }) => {
     const value = input.trim();
     if (!value) return;
 
-    addPantryItem(value);
+    await fetch("http://10.0.2.2:3000/pantry", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: user.id,
+        ingredientName: value,
+      }),
+    });
+
+    loadPantry();
     setInput('');
   };
 
-  const confirmRemovePantryItem = item => {
+  const confirmRemovePantryItem = async item => {
     Alert.alert(
       'Remove Ingredient',
       `Remove "${item.ingredientName}" from your pantry?`,
@@ -95,8 +172,12 @@ const PantryScreen = ({ navigation }) => {
         {
           text: 'Remove',
           style: 'destructive',
-          onPress: () => {
-            removePantryItem(item);
+          onPress: async () => {
+            await fetch(`http://10.0.2.2:3000/pantry/${item.id}`, {
+              method: "DELETE",
+            });
+
+            loadPantry();
             setSelected(prev =>
               prev.filter(i => i !== item.ingredientName)
             );
@@ -340,6 +421,8 @@ const PantryScreen = ({ navigation }) => {
                 key={recipe.id}
                 recipe={recipe}
                 onPress={() => navigation.navigate('RecipeDetail', { recipe })}
+                isFav={favouriteIds.includes(String(recipe.id))}
+                onFavoritePress={handleFavorite}
               />
             ))
           )

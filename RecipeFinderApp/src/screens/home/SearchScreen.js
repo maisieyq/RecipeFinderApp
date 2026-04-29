@@ -1,42 +1,22 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  Animated,
-  Dimensions,
-  Pressable,
-  Image,
-} from 'react-native';
-
+import { useAuth } from '../../context/AuthContext';
+import {View,Text,ScrollView,TouchableOpacity,StyleSheet,Animated,Dimensions,Pressable,Image,Alert, } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { typography, spacing, radius, colors, shadows } from '../../theme';
-
-
 import { usePantry } from '../../context/PantryContext';
 import { useFavorites } from '../../context/FavoritesContext';
 import { useHistoryRecipes } from '../../context/HistoryContext';
-import {
-  searchMealsByName,
-  searchMealsByIngredient,
-  getMealById,
-  normalizeMeal,
-} from '../../services/mealDbApi';
-
+import {searchMealsByName,searchMealsByIngredient,getMealById,normalizeMeal,} from '../../services/mealDbApi';
 import RecipeCard from '../../components/recipe/RecipeCard';
 import SearchBar from '../../components/common/SearchBar';
 import { EmptyState, SkeletonCard } from '../../components/common/StateComponents';
 import AppHeader from '../../components/common/AppHeader';
-import {
-  FilterIcon,
-  CloseIcon,
-  MenuIcon,
-} from '../../components/icons/commonIcons';
+import {FilterIcon,CloseIcon,MenuIcon,} from '../../components/icons/commonIcons';
+import { useFocusEffect } from '@react-navigation/native';
+
+
 
 const { width } = Dimensions.get('window');
-
 const MEAL_OPTIONS = ['Breakfast', 'Lunch', 'Dinner'];
 const SORT_OPTIONS = ['Quickest', 'Calories'];
 const DRAWER_WIDTH = width * 0.84;
@@ -46,9 +26,10 @@ const SearchScreen = ({ navigation, route }) => {
   const { pantryItems } = usePantry();
   const { favorites } = useFavorites();
   const { history, addToHistory } = useHistoryRecipes();
-  const incoming = route?.params || {};
+  const { user, isLoggedIn } = useAuth();
+  const [favouriteIds, setFavouriteIds] = useState([]);
 
-  const [searchText, setSearchText] = useState(incoming.fromHome ? incoming.query || '' : '');
+  const [searchText, setSearchText] = useState('');
   const [mealFilter, setMealFilter] = useState(null);
   const [sortFilter, setSortFilter] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -56,22 +37,112 @@ const SearchScreen = ({ navigation, route }) => {
   const [results, setResults] = useState([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const fadeIn = useRef(new Animated.Value(0)).current;
+  const fadeIn = useRef(new Animated.Value(1)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const drawerTranslateX = useRef(new Animated.Value(DRAWER_WIDTH)).current;
+  const isMounted = useRef(false);
+  const cameFromHome = useRef(false);
 
-useEffect(() => {
-    if (!searchText.trim()) return;
+useFocusEffect(
+  React.useCallback(() => {
+    const params = route?.params;
+
+    if (params?.fromHome && params?.query) {
+      cameFromHome.current = true;
+
+      const q = params.query;
+      setSearchText(q);
+      runSearch(q);
+
+      navigation.setParams({
+        fromHome: undefined,
+        query: undefined,
+      });
+
+      return;
+    }
+
+    if (cameFromHome.current) {
+      return;
+    }
+
+    if (!params?.fromHome && !params?.query && results.length === 0) {
+      runSearch('');
+    }
+  }, [route?.params])
+);
+
+  // ✅ Debounce typing - skip first render
+  useEffect(() => {
+    if (!isMounted.current) {
+      isMounted.current = true;
+      return;
+    }
     const timer = setTimeout(() => {
-      runSearch();
+      runSearch(searchText);
     }, 500);
     return () => clearTimeout(timer);
   }, [searchText]);
 
-const groupedRecipes = useMemo(() => {
-  const sorted = [...results].sort((a, b) =>
-    a.title.localeCompare(b.title)
-  );
+  const loadFavourites = async () => {
+    if (!user?.id) return;
+
+    const res = await fetch(`http://10.0.2.2:3000/favourites/${user.id}`);
+    const data = await res.json();
+
+    setFavouriteIds(data.map(item => String(item.recipeId)));
+  };
+
+  useEffect(() => {
+    loadFavourites();
+  }, [user?.id]);
+
+  const handleFavorite = async recipe => {
+    if (!isLoggedIn) {
+      Alert.alert('Login Required', 'Please login or register first.');
+      return;
+    }
+
+    const recipeId = String(recipe.id);
+    const isFav = favouriteIds.includes(recipeId);
+
+    if (!isFav) {
+      await fetch(`http://10.0.2.2:3000/favourites`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          recipeId: recipe.id,
+          recipeTitle: recipe.title,
+          recipeImage: recipe.image,
+          cookTime: recipe.cookTime,
+          servings: recipe.servings,
+          calories: recipe.calories,
+          difficulty: recipe.difficulty,
+        }),
+      });
+
+      setFavouriteIds(prev => [...prev, recipeId]);
+    } else {
+      const res = await fetch(`http://10.0.2.2:3000/favourites/${user.id}`);
+      const data = await res.json();
+
+      const found = data.find(item => String(item.recipeId) === recipeId);
+
+      if (found) {
+        await fetch(`http://10.0.2.2:3000/favourites/${found.id}`, {
+          method: 'DELETE',
+        });
+      }
+
+      setFavouriteIds(prev => prev.filter(id => id !== recipeId));
+    }
+  };
+
+  const groupedRecipes = useMemo(() => {
+    const sorted = [...results].sort((a, b) =>
+      a.title.localeCompare(b.title)
+    );
 
     const groups = {};
 
@@ -159,7 +230,7 @@ const getRecommendationResults = async () => {
     const meals = await searchMealsByName(keyword);
 
     const detailed = await Promise.all(
-      meals.slice(0, 8).map(async meal => {
+      meals.map(async meal => {
         const detail = await getMealById(meal.idMeal);
         return normalizeMeal(detail || meal);
       })
@@ -172,61 +243,58 @@ const getRecommendationResults = async () => {
   }
 };
 
-  const runSearch = async () => {
-  const keyword = searchText.trim();
+  const runSearch = async (keyword = '') => {
+    const trimmed = keyword.trim();
 
-  if (!keyword) {
-    const rec = await getRecommendationResults();
-    setResults(rec);
-  }
+    setIsLoading(true);
 
-  setIsLoading(true);
+    if (!trimmed) {
+      const rec = await getRecommendationResults();
+      setResults(rec);
+      setIsLoading(false);
+      return;
+    }
 
-  try {
-    const [nameResults, ingredientResults] = await Promise.all([
-      searchMealsByName(keyword),
-      searchMealsByIngredient(keyword),
-    ]);
+    try {
+      const [nameResults, ingredientResults] = await Promise.all([
+        searchMealsByName(trimmed),
+        searchMealsByIngredient(trimmed),
+      ]);
 
-    const combinedResults = [...nameResults, ...ingredientResults];
+      const combinedResults = [...nameResults, ...ingredientResults];
 
-    const uniqueResults = combinedResults.filter(
-      (meal, index, self) =>
-        index === self.findIndex(item => item.idMeal === meal.idMeal)
-    );
+      const uniqueResults = combinedResults.filter(
+        (meal, index, self) =>
+          index === self.findIndex(item => item.idMeal === meal.idMeal)
+      );
 
-    const detailedRecipes = await Promise.all(
-      uniqueResults.map(async meal => {
-        const detail = await getMealById(meal.idMeal);
-        return normalizeMeal(detail || meal);
-      })
-    );
+      const detailedRecipes = await Promise.all(
+        uniqueResults.map(async meal => {
+          const detail = await getMealById(meal.idMeal);
+          return normalizeMeal(detail || meal);
+        })
+      );
 
-    const sortedByPantryMatch = detailedRecipes.sort((a, b) => {
-      const aMatch = getRecipeMatchedPantryItems(a).length;
-      const bMatch = getRecipeMatchedPantryItems(b).length;
+      const sortedByPantryMatch = detailedRecipes.sort((a, b) => {
+        const aMatch = getRecipeMatchedPantryItems(a).length;
+        const bMatch = getRecipeMatchedPantryItems(b).length;
+        return bMatch - aMatch;
+      });
 
-      return bMatch - aMatch;
-    });
-
-    setResults(sortedByPantryMatch);
-  } catch (error) {
-    console.log('Search API error:', error);
-
-    const q = keyword.toLowerCase();
-
-    setResults([]);
-  } finally {
-    setIsLoading(false);
-    fadeIn.setValue(0);
-
-    Animated.timing(fadeIn, {
-      toValue: 1,
-      duration: 350,
-      useNativeDriver: true,
-    }).start();
-  }
-};
+      setResults(sortedByPantryMatch);
+    } catch (error) {
+      console.log('Search API error:', error);
+      setResults([]);
+    } finally {
+      setIsLoading(false);
+      fadeIn.setValue(0);
+      Animated.timing(fadeIn, {
+        toValue: 1,
+        duration: 350,
+        useNativeDriver: true,
+      }).start();
+    }
+  } 
 
   const hasSearch = searchText.trim().length > 0;
 
@@ -294,6 +362,7 @@ const getRecommendationResults = async () => {
                   setSearchText('');
                   setMealFilter(null);
                   setSortFilter(null);
+                  runSearch('');
                 }}
                 onSubmit={runSearch}
                 placeholder="Recipe or ingredient..."
@@ -428,18 +497,17 @@ const getRecommendationResults = async () => {
           </View>
         )}
 
-        {!isLoading && filteredResults.length > 0 && (
-  <View style={styles.resultInfoWrap}>
-    <Text style={[styles.resultCount, { color: theme.textMuted }]}>
-      {hasSearch
-        ? `${filteredResults.length} recipe${filteredResults.length !== 1 ? 's' : ''} found`
-        : 'Recommended recipes based on pantry, favorites, and history'}
-    </Text>
-  </View>
-)}
+        {!isLoading &&(
+          <View style={styles.resultInfoWrap}>
+            <Text style={[styles.resultCount, { color: theme.textMuted }]}>
+              {hasSearch
+                ? `${filteredResults.length} recipe${filteredResults.length !== 1 ? 's' : ''} found`
+                : 'Recommended recipes based on pantry, favorites, and history'}
+            </Text>
+          </View>
+        )}
 
-        {hasSearch || filteredResults.length > 0 ? (
-  isLoading ? (
+  {isLoading ? (
     <>
       <SkeletonCard />
       <SkeletonCard />
@@ -454,6 +522,7 @@ const getRecommendationResults = async () => {
         setSearchText('');
         setMealFilter(null);
         setSortFilter(null);
+        runSearch('');
       }}
       actionLabel="Clear Search"
     />
@@ -467,6 +536,8 @@ const getRecommendationResults = async () => {
             <RecipeCard
               recipe={recipe}
               onPress={() => goToRecipeDetail(recipe)}
+              isFav={favouriteIds.includes(String(recipe.id))}
+              onFavoritePress={handleFavorite}
             />
 
             {matchedItems.length > 0 && (
@@ -481,7 +552,9 @@ const getRecommendationResults = async () => {
               >
                 <Text style={styles.matchTitle}>Pantry Match</Text>
                 <Text style={[styles.matchText, { color: theme.textMuted }]}>
-                  {matchedItems.join(', ')}
+                   {matchedItems.map(item =>
+                      item.ingredientName || item.name || item
+                    ).join(', ')}
                 </Text>
               </View>
             )}
@@ -489,8 +562,7 @@ const getRecommendationResults = async () => {
         );
       })}
     </Animated.View>
-  )
-) : null}
+  )}
 
         <View style={{ height: 90 }} />
       </ScrollView>
@@ -588,7 +660,7 @@ const getRecommendationResults = async () => {
                         </Text>
 
                         <View style={styles.drawerTagRow}>
-                          {recipe.tags.slice(0, 2).map(tag => (
+                          {(recipe.tags || []).slice(0, 3).map(tag => (
                             <View
                               key={tag}
                               style={[

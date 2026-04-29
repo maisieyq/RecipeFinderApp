@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -11,11 +11,9 @@ import {
   Pressable,
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
-
+import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { usePantry } from '../../context/PantryContext';
 import { typography, spacing, radius, colors } from '../../theme';
-
 import AppHeader from '../../components/common/AppHeader';
 import {
   EditIcon,
@@ -27,21 +25,49 @@ import {
 
 const PantryManageScreen = ({ navigation }) => {
   const { theme } = useTheme();
-  const {
-    pantryItems,
-    addPantryItem,
-    removePantryItem,
-    renamePantryItem,
-    movePantryItem,
-  } = usePantry();
+  const { user, isLoggedIn } = useAuth();
 
+  const [pantryItems, setPantryItems] = useState([]);
   const [addVisible, setAddVisible] = useState(false);
   const [renameVisible, setRenameVisible] = useState(false);
   const [newItem, setNewItem] = useState('');
   const [renameValue, setRenameValue] = useState('');
   const [editingItem, setEditingItem] = useState(null);
 
+  useEffect(() => {
+    if (user?.id) {
+      loadPantry();
+    }
+  }, [user?.id]);
+
+  const requireLogin = () => {
+    if (isLoggedIn && user?.id) return true;
+
+    Alert.alert('Login Required', 'Please login first.');
+    return false;
+  };
+
+  const loadPantry = async () => {
+    if (!user?.id) return;
+
+    try {
+      const res = await fetch(`http://10.0.2.2:3000/pantry/${user.id}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        Alert.alert('Error', data.error || 'Failed to load pantry.');
+        return;
+      }
+
+      setPantryItems(data);
+    } catch (error) {
+      console.log(error);
+      Alert.alert('Error', 'Cannot connect to server.');
+    }
+  };
+
   const openAddModal = () => {
+    if (!requireLogin()) return;
     setNewItem('');
     setAddVisible(true);
   };
@@ -63,7 +89,9 @@ const PantryManageScreen = ({ navigation }) => {
     setRenameVisible(false);
   };
 
-  const handleConfirmAdd = () => {
+  const handleConfirmAdd = async () => {
+    if (!requireLogin()) return;
+
     const trimmed = newItem.trim();
 
     if (!trimmed) {
@@ -81,9 +109,55 @@ const PantryManageScreen = ({ navigation }) => {
       return;
     }
 
-    addPantryItem(trimmed);
-    closeAddModal();
-    Alert.alert('Success', `"${trimmed}" added.`);
+    try {
+      const res = await fetch('http://10.0.2.2:3000/pantry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          ingredientName: trimmed,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        Alert.alert('Error', data.error || 'Failed to add item.');
+        return;
+      }
+
+      closeAddModal();
+      loadPantry();
+      Alert.alert('Success', 'Pantry item added.');
+    } catch (error) {
+      console.log(error);
+      Alert.alert('Error', 'Cannot connect to server.');
+    }
+  };
+
+  const renamePantryItem = async (item, newName) => {
+    try {
+      const res = await fetch(`http://10.0.2.2:3000/pantry/${item.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ingredientName: newName,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        Alert.alert('Error', data.error || 'Failed to rename item.');
+        return;
+      }
+
+      loadPantry();
+      Alert.alert('Success', 'Renamed successfully.');
+    } catch (error) {
+      console.log(error);
+      Alert.alert('Error', 'Cannot connect to server.');
+    }
   };
 
   const handleConfirmRename = () => {
@@ -107,14 +181,45 @@ const PantryManageScreen = ({ navigation }) => {
 
     renamePantryItem(editingItem, trimmed);
     closeRenameModal();
-    Alert.alert('Success', 'Renamed successfully.');
+  };
+
+  const removePantryItem = async item => {
+    try {
+      const res = await fetch(`http://10.0.2.2:3000/pantry/${item.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        Alert.alert('Error', 'Failed to remove item.');
+        return;
+      }
+
+      loadPantry();
+    } catch (error) {
+      console.log(error);
+      Alert.alert('Error', 'Cannot connect to server.');
+    }
   };
 
   const confirmRemove = item => {
     Alert.alert('Remove', `Remove "${item.ingredientName}"?`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', onPress: () => removePantryItem(item) },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => removePantryItem(item),
+      },
     ]);
+  };
+
+  const movePantryItem = (fromIndex, toIndex) => {
+    if (toIndex < 0 || toIndex >= pantryItems.length) return;
+
+    const updated = [...pantryItems];
+    const [movedItem] = updated.splice(fromIndex, 1);
+    updated.splice(toIndex, 0, movedItem);
+
+    setPantryItems(updated);
   };
 
   const renderRightActions = item => (
@@ -345,7 +450,7 @@ const styles = StyleSheet.create({
   addBtnWrapper: {
     position: 'absolute',
     right: 16,
-    top: 20,
+    top: 40,
     zIndex: 999,
     elevation: 10,
   },

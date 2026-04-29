@@ -18,6 +18,9 @@
     "@react-navigation/native": "^6.1.9",
     "@react-navigation/native-stack": "^6.11.0",
     "@react-navigation/stack": "6.0",
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
     "react": "18.2.0",
     "react-native": "0.73.11",
     "react-native-floating-action": "^1.22.0",
@@ -27,7 +30,8 @@
     "react-native-screens": "3.29",
     "react-native-sqlite-storage": "^6.0.1",
     "react-native-svg": "^14.1.0",
-    "react-native-vector-icons": "^10.3.0"
+    "react-native-vector-icons": "^10.3.0",
+    "sqlite3": "^6.0.1"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
@@ -37,7 +41,6 @@
     "@react-native/eslint-config": "0.73.2",
     "@react-native/metro-config": "0.73.5",
     "@react-native/typescript-config": "0.73.1",
-    
     "@types/react": "^18.2.6",
     "@types/react-test-renderer": "^18.0.0",
     "babel-jest": "^29.6.3",

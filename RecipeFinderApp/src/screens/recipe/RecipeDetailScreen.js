@@ -20,8 +20,6 @@ import {
   CheckIcon,
 } from '../../components/icons/commonIcons';
 import { getMealById, normalizeMeal } from '../../services/mealDbApi';
-import { useFavorites } from '../../context/FavoritesContext';
-import { useHistoryRecipes } from '../../context/HistoryContext';
 import { useAuth } from '../../context/AuthContext';
 import { Alert } from 'react-native';
 
@@ -42,16 +40,44 @@ const RecipeDetailScreen = ({ navigation, route }) => {
 
   const [recipe, setRecipe] = useState(passedRecipe || null);
   const [loading, setLoading] = useState(!passedRecipe);
-  const { user } = useAuth();
+  const { user,isLoggedIn } = useAuth();
 
-  const { favorites, toggleFavorite } = useFavorites();
-  const { isLoggedIn } = useAuth();
-  const { addToHistory } = useHistoryRecipes();
+  
+  
+  const addToHistory = async () => {
+    if (!user?.id || !recipe?.id) return;
 
-  // FIX 2: Initialize isFav from favorites context so it's not always false
-  const [isFav, setIsFav] = useState(
-    favorites?.some(f => String(f.recipeId) === String(passedRecipe?.id)) ?? false
-  );
+    try {
+      const res = await fetch(`http://10.0.2.2:3000/history/${user.id}`);
+      const data = await res.json();
+
+      const exists = data.find(
+        item => String(item.recipeId) === String(recipe.id)
+      );
+
+      if (exists) return; // 🔥 prevent duplicate
+
+      await fetch(`http://10.0.2.2:3000/history`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          recipeId: recipe.id,
+          recipeTitle: recipe.title,
+          recipeImage: recipe.image,
+          cookTime: recipe.cookTime,
+          servings: recipe.servings,
+          calories: recipe.calories,
+          difficulty: recipe.difficulty,
+        }),
+      });
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+
+  const [isFav, setIsFav] = useState(false);
 
   const [activeTab, setActiveTab] = useState('Ingredients');
   const [completedSteps, setCompletedSteps] = useState([]);
@@ -70,7 +96,6 @@ const RecipeDetailScreen = ({ navigation, route }) => {
           fiber: '0g',
         };
 
-  // FIX 3: Empty deps [] — only run once on mount, uses passedRecipeId not recipeId
   useEffect(() => {
     const loadRecipe = async () => {
       if (passedRecipe) return;
@@ -99,22 +124,19 @@ const RecipeDetailScreen = ({ navigation, route }) => {
     };
 
     loadRecipe();
-  }, []); // ← empty deps, only runs once on mount
-
-  // FIX 4: Only depend on recipe?.id string, not the whole recipe object or addToHistory
-  // This prevents infinite re-render loop when addToHistory is unstable
-  const stableRecipeId = recipe?.id;
-  useEffect(() => {
-    if (stableRecipeId) {
-      addToHistory(stableRecipeId);
-    }
-  }, [stableRecipeId]); // ← was [recipe, addToHistory] which caused the freeze
+  }, []);
 
   useEffect(() => {
     if (recipe?.id && user?.id) {
       checkFavourite();
     }
   }, [recipe?.id, user?.id]);
+
+  useEffect(() => {
+  if (recipe?.id) {
+    addToHistory();
+  }
+}, [recipe]);
 
   const checkFavourite = async () => {
     if (!user?.id || !recipe?.id) return;

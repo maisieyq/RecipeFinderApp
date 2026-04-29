@@ -29,10 +29,10 @@ import { usePantry } from '../../context/PantryContext';
 const ProfileScreen = ({ navigation }) => {
   const { theme } = useTheme();
   const { user, isLoggedIn, logout } = useAuth();
-  const { pantryItems } = usePantry();
 
   const [favouriteCount, setFavouriteCount] = useState(0);
   const [historyCount, setHistoryCount] = useState(0);
+  const [pantryCount, setPantryCount] = useState(0);
 
   useEffect(() => {
     loadCounts();
@@ -42,22 +42,29 @@ const ProfileScreen = ({ navigation }) => {
     if (!user?.id) {
       setFavouriteCount(0);
       setHistoryCount(0);
+      setPantryCount(0);
       return;
     }
 
     try {
-      const favRes = await fetch(`http://10.0.2.2:3000/favourites/${user.id}`);
-      const favData = await favRes.json();
+      const [favRes, historyRes, pantryRes] = await Promise.all([
+        fetch(`http://10.0.2.2:3000/favourites/${user.id}`),
+        fetch(`http://10.0.2.2:3000/history/${user.id}`),
+        fetch(`http://10.0.2.2:3000/pantry/${user.id}`),
+      ]);
 
-      const historyRes = await fetch(`http://10.0.2.2:3000/history/${user.id}`);
+      const favData = await favRes.json();
       const historyData = await historyRes.json();
+      const pantryData = await pantryRes.json();
 
       setFavouriteCount(Array.isArray(favData) ? favData.length : 0);
       setHistoryCount(Array.isArray(historyData) ? historyData.length : 0);
+      setPantryCount(Array.isArray(pantryData) ? pantryData.length : 0);
     } catch (error) {
       console.log(error);
       setFavouriteCount(0);
       setHistoryCount(0);
+      setPantryCount(0);
     }
   };
 
@@ -161,7 +168,7 @@ const ProfileScreen = ({ navigation }) => {
           <ProfileMenuRow
             icon={<PantryIcon color={colors.orange} />}
             label="Pantry"
-            count={pantryItems.length}
+            count={pantryCount}
             theme={theme}
             onPress={() => navigation.navigate('PantryManageScreen')}
           />

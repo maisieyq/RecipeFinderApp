@@ -27,7 +27,7 @@ const HistoryScreen = ({ navigation }) => {
 
   useEffect(() => {
     loadHistory();
-  }, []);
+  }, [user?.id]);
 
   const loadHistory = async () => {
     if (!user?.id) {

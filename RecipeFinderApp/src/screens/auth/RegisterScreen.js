@@ -25,28 +25,67 @@ export default function RegisterScreen({ navigation }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const handleRegister = async () => {
-  if (!name || !email || !phone || !password || !confirmPassword) {
+const handleRegister = async () => {
+
+  const nameValue = name.trim();
+  const emailValue = email.trim();
+  const phoneValue = phone.trim();
+  const passwordValue = password.trim();
+  const confirmPasswordValue = confirmPassword.trim();
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const phoneRegex = /^[0-9]{10,11}$/;
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+
+  // 🔽 ADD VALIDATION HERE
+  if (!nameValue || !emailValue || !phoneValue || !passwordValue || !confirmPasswordValue) {
     Alert.alert('Missing Information', 'Please fill in all fields.');
     return;
   }
 
-  if (password !== confirmPassword) {
+  if (nameValue.length < 3) {
+    Alert.alert('Invalid Name', 'Name must be at least 3 characters.');
+    return;
+  }
+
+  if (!emailRegex.test(emailValue)) {
+    Alert.alert('Invalid Email', 'Please enter a valid email address.');
+    return;
+  }
+
+  if (!emailValue.endsWith('@gmail.com')) {
+    Alert.alert('Invalid Gmail', 'Please use a Gmail address.');
+    return;
+  }
+
+  if (!phoneRegex.test(phoneValue)) {
+    Alert.alert('Invalid Phone Number', 'Phone number must be 10 to 11 digits only.');
+    return;
+  }
+
+  if (!passwordRegex.test(passwordValue)) {
+    Alert.alert(
+      'Weak Password',
+      'Password must be at least 8 characters and include:\n• Uppercase letter\n• Lowercase letter\n• Number\n• Special symbol (e.g. @, $, !)'
+    );
+    return;
+  }
+
+  if (passwordValue !== confirmPasswordValue) {
     Alert.alert('Password Mismatch', 'Password and confirm password do not match.');
     return;
   }
 
+  // 🔽 KEEP YOUR ORIGINAL FETCH BELOW
   try {
     const response = await fetch('http://10.0.2.2:3000/register', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name,
-        email,
-        phone,
-        password,
+        name: nameValue,
+        email: emailValue,
+        phone: phoneValue,
+        password: passwordValue,
       }),
     });
 
@@ -58,14 +97,13 @@ export default function RegisterScreen({ navigation }) {
     }
 
     Alert.alert('Registered', 'Your account has been created successfully.', [
-      {
-        text: 'OK',
-        onPress: () => navigation.navigate('LoginScreen'),
-      },
-    ]);
+    {
+      text: 'OK',
+      onPress: () => navigation.navigate('LoginScreen'),
+    },
+]);
   } catch (error) {
     Alert.alert('Error', 'Cannot connect to server.');
-    console.log(error);
   }
 };
 

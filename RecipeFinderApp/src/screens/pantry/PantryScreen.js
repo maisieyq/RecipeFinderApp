@@ -12,7 +12,6 @@ import { useTheme } from '../../context/ThemeContext';
 import { typography, spacing, radius, colors } from '../../theme';
 
 import {
-  searchMealsByName,
   searchMealsByIngredient,
   getMealById,
   normalizeMeal,
@@ -211,13 +210,12 @@ const handleFavorite = async recipe => {
     }
 
     const apiResults = await Promise.all(
-      searchTerms.map(async term => {
-        const [nameResults, ingredientResults] = await Promise.all([
-          searchMealsByName(term),
+      searchTerms.slice(0, 5).map(async term => {
+        const [ ingredientResults] = await Promise.all([
           searchMealsByIngredient(term),
         ]);
 
-        return [...nameResults, ...ingredientResults];
+        return [...ingredientResults];
       })
     );
 
@@ -229,7 +227,7 @@ const handleFavorite = async recipe => {
     );
 
     const detailedRecipes = await Promise.all(
-      uniqueResults.map(async meal => {
+      uniqueResults.slice(0, 20).map(async meal => {
         const detail = await getMealById(meal.idMeal);
         return normalizeMeal(detail || meal);
       })

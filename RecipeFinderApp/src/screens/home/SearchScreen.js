@@ -245,13 +245,13 @@ const getRecommendationResults = async () => {
     }
 
     const detailed = await Promise.all(
-      meals.slice(0, 10).map(async meal => { // ← limit to 10 to avoid slow loads
+      meals.slice(0, 20).map(async meal => { 
         const detail = await getMealById(meal.idMeal);
         return normalizeMeal(detail || meal);
       })
     );
 
-    return detailed.filter(Boolean); // ← remove any null results
+    return detailed.filter(Boolean);
   } catch (error) {
     console.log('Recommendation error:', error);
     return [];
@@ -259,7 +259,12 @@ const getRecommendationResults = async () => {
 };
 
   const runSearch = async (keyword = '') => {
-    const trimmed = keyword.trim();
+    const text =
+    typeof keyword === 'string'
+      ? keyword
+      : searchText;
+
+   const trimmed = text.trim();
 
     setIsLoading(true);
 
@@ -271,12 +276,11 @@ const getRecommendationResults = async () => {
     }
 
     try {
-      const [nameResults, ingredientResults] = await Promise.all([
+      const [nameResults] = await Promise.all([
         searchMealsByName(trimmed),
-        searchMealsByIngredient(trimmed),
       ]);
 
-      const combinedResults = [...nameResults, ...ingredientResults];
+      const combinedResults = [...nameResults];
 
       const uniqueResults = combinedResults.filter(
         (meal, index, self) =>
@@ -379,7 +383,7 @@ const getRecommendationResults = async () => {
                   setSortFilter(null);
                   runSearch('');
                 }}
-                onSubmit={runSearch}
+                onSubmit={() => runSearch(searchText)}
                 placeholder="Recipe or ingredient..."
               />
             </View>

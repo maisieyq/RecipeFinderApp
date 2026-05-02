@@ -177,6 +177,7 @@ Make sure you have installed:
 ```bash
 git clone https://github.com/your-username/RecipeFinderApp.git
 cd RecipeFinderApp
+```
 
 ### 📦 2. Install Frontend Dependencies
 ```bash

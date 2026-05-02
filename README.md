@@ -164,18 +164,41 @@ Stores:
 
 ## ⚙️ Installation Guide
 
-```bash
-# Clone repository
-git clone https://github.com/your-username/RecipeFinderApp.git
+### 📌 Prerequisites
+Make sure you have installed:
+- Node.js  
+- npm  
+- React Native CLI  
+- Android Studio (for emulator)  
 
-# Navigate to project folder
+---
+
+### 📥 1. Clone the Repository
+```bash
+git clone https://github.com/your-username/RecipeFinderApp.git
 cd RecipeFinderApp
 
-# Install dependencies
+### 📦 2. Install Frontend Dependencies
+```bash
 npm install
 
-# Start backend server (if applicable)
+### 🗄️ 3. Setup Backend Server (SQLite)
+Navigate to the database folder:
+```bash
+cd database
+Install backend dependencies:
+```bash
+npm install express sqlite3 cors bcrypt
+Start the backend server:
+```bash
 node server.js
 
-# Run the application
+### 🔙 4. Return to Root Project
+```bash
+cd..
+
+### ▶️ 5. Run the React Native App
+```bash
 npx react-native run-android
+
+

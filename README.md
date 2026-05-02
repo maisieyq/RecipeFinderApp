@@ -169,9 +169,8 @@ Make sure you have installed:
 - Node.js  
 - npm  
 - React Native CLI  
-- Android Studio (for emulator)  
-
----
+- Android Studio (for emulator)
+  
 
 ### 📥 1. Clone the Repository
 ```bash

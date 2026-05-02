@@ -182,21 +182,26 @@ cd RecipeFinderApp
 ### 📦 2. Install Frontend Dependencies
 ```bash
 npm install
+```
 
 ### 🗄️ 3. Setup Backend Server (SQLite)
 Navigate to the database folder:
 ```bash
 cd database
+```
 Install backend dependencies:
 ```bash
 npm install express sqlite3 cors bcrypt
+```
 Start the backend server:
 ```bash
 node server.js
+```
 
 ### 🔙 4. Return to Root Project
 ```bash
 cd..
+```
 
 ### ▶️ 5. Run the React Native App
 ```bash

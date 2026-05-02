@@ -178,10 +178,12 @@ git clone https://github.com/your-username/RecipeFinderApp.git
 cd RecipeFinderApp
 ```
 
+
 ### 📦 2. Install Frontend Dependencies
 ```bash
 npm install
 ```
+
 
 ### 🗄️ 3. Setup Backend Server (SQLite)
 Navigate to the database folder:
@@ -197,10 +199,12 @@ Start the backend server:
 node server.js
 ```
 
+
 ### 🔙 4. Return to Root Project
 ```bash
 cd..
 ```
+
 
 ### ▶️ 5. Run the React Native App
 ```bash
